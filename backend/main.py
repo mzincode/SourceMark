@@ -51,7 +51,11 @@ app = FastAPI(title="SourceMark API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+    "http://localhost:3000",
+    "https://sourcemark.vercel.app",
+    "https://sourcemark-4j42axzwx-mzincodes-projects.vercel.app",
+],
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Total-Highlights", "X-Results"],
