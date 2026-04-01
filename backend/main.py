@@ -146,7 +146,7 @@ def call_openrouter(prompt):
             "Content-Type": "application/json",
         },
         json={
-            "model": "minimax/minimax-m2.5",
+            "model": "qwen/qwen3.6-plus-preview",
             "messages": [
                 {
                     "role": "system",
