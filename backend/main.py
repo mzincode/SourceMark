@@ -24,7 +24,7 @@ groq_key = os.getenv("GROQ_API_KEY")
 # Set up Gemini
 if gemini_key:
     genai.configure(api_key=gemini_key)
-    gemini_model = genai.GenerativeModel("gemini-1.5-flash-latest")
+    gemini_model = genai.GenerativeModel("gemini-2.5-flash")
     print("✅ Gemini API connected")
 else:
     gemini_model = None
