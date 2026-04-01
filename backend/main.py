@@ -57,7 +57,7 @@ else:
     print("⚠️  No Mistral key found")
 # Track which API to use
 
-current_api = "gemini" if gemini_model else "groq"
+
 
 # Create the app
 app = FastAPI(title="SourceMark API")
@@ -191,54 +191,42 @@ def call_mistral(prompt):
     return response.json()["choices"][0]["message"]["content"].strip()
 
 def call_ai(prompt):
-    """Try Gemini first, then Groq, then OpenRouter."""
-    global current_api
-
-    if gemini_model and current_api == "gemini":
+    """Try APIs in order: Gemini → Groq → Mistral → OpenRouter"""
+    errors = []
+    
+    # Try Gemini
+    if gemini_model:
         try:
             return call_gemini(prompt)
         except Exception as e:
-            error_str = str(e).lower()
-            if "429" in str(e) or "quota" in error_str or "resource" in error_str:
-                print("  ⚡ Gemini rate limited, switching to Groq")
-                current_api = "groq"
-            else:
-                print(f"  ⚠️ Gemini error: {e}")
-                if groq_client:
-                    current_api = "groq"
-                else:
-                    raise
-
-    if groq_client and current_api == "groq":
+            print(f"  ⚠️ Gemini failed: {e}")
+            errors.append(f"Gemini: {e}")
+    
+    # Try Groq
+    if groq_client:
         try:
-            result = call_groq(prompt)
-            return result
+            return call_groq(prompt)
         except Exception as e:
-            error_str = str(e).lower()
-            if "429" in str(e) or "rate" in error_str:
-                print("  ⚡ Groq rate limited, switching to Mistral")
-                current_api = "mistral"
-            else:
-                raise
-
-    if openrouter_key and current_api == "openrouter":
+            print(f"  ⚠️ Groq failed: {e}")
+            errors.append(f"Groq: {e}")
+    
+    # Try Mistral
+    if mistral_key:
         try:
-            result = call_openrouter(prompt)
-            print("  ✅ OpenRouter responded")
-            return result
+            return call_mistral(prompt)
         except Exception as e:
-            print(f"  ❌ OpenRouter error: {e}")
-            raise
-    if mistral_key and current_api == "mistral":
+            print(f"  ⚠️ Mistral failed: {e}")
+            errors.append(f"Mistral: {e}")
+    
+    # Try OpenRouter
+    if openrouter_key:
         try:
-            result = call_mistral(prompt)
-            print("  ✅ Mistral responded")
-            return result
+            return call_openrouter(prompt)
         except Exception as e:
-            print(f"  ❌ Mistral error: {e}")
-            raise
-    raise Exception("No AI API available")
-
+            print(f"  ⚠️ OpenRouter failed: {e}")
+            errors.append(f"OpenRouter: {e}")
+    
+    raise Exception(f"All APIs failed: {errors}")
 
 def find_phrases(chunk_text, topic_description, retry=0):
     """Ask AI to find exact phrases matching a topic."""
@@ -364,11 +352,18 @@ def highlight_pdf(doc, phrases, color):
 
 @app.get("/")
 def root():
+    apis = []
+    if gemini_model: apis.append("gemini")
+    if groq_client: apis.append("groq")
+    if mistral_key: apis.append("mistral")
+    if openrouter_key: apis.append("openrouter")
+    
     return {
         "name": "SourceMark API",
         "status": "running",
-        "active_api": current_api,
+        "available_apis": apis,
     }
+    
 
 
 @app.post("/api/highlight")
