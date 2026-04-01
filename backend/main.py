@@ -159,7 +159,10 @@ def call_openrouter(prompt):
         },
         timeout=30,
     )
-    return response.json()["choices"][0]["message"]["content"].strip()
+    data = response.json()
+    if "choices" not in data:
+        raise Exception(f"OpenRouter error: {data}")
+    return data["choices"][0]["message"]["content"].strip()
 
 def call_ai(prompt):
     """Try Gemini first, then Groq, then OpenRouter."""
