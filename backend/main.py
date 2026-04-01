@@ -55,8 +55,6 @@ if mistral_key:
     print("✅ Mistral API connected")
 else:
     print("⚠️  No Mistral key found")
-# Track which API to use
-
 
 
 # Create the app
@@ -226,7 +224,7 @@ def call_ai(prompt):
             print(f"  ⚠️ OpenRouter failed: {e}")
             errors.append(f"OpenRouter: {e}")
     
-    raise Exception(f"All APIs failed: {errors}")
+    raise Exception(f"All AI APIs failed: {errors}")
 
 def find_phrases(chunk_text, topic_description, retry=0):
     """Ask AI to find exact phrases matching a topic."""
@@ -363,7 +361,6 @@ def root():
         "status": "running",
         "available_apis": apis,
     }
-    
 
 
 @app.post("/api/highlight")
@@ -372,11 +369,10 @@ async def highlight_document(
     topics: str = Form(...),
 ):
     """Upload PDF + topics, get highlighted PDF back."""
-    global current_api
 
     print(f"\n{'='*50}")
     print(f"📄 Processing: {file.filename}")
-    print(f"🤖 Using: {current_api}")
+    print(f"🤖 AI request initiated")
 
     if not file.filename.endswith(".pdf"):
         raise HTTPException(400, "Only PDF files accepted")
@@ -427,7 +423,7 @@ async def highlight_document(
             for i, chunk in enumerate(chunks):
                 print(f"    Chunk {i + 1}/{len(chunks)}...", end=" ")
                 phrases = find_phrases(chunk["text"], topic_desc)
-                print(f"{len(phrases)} found [{current_api}]")
+                print(f"{len(phrases)} found")
                 all_phrases.extend(phrases)
                 time.sleep(4)
 
