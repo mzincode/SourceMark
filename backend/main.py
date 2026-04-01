@@ -146,7 +146,7 @@ def call_openrouter(prompt):
             "Content-Type": "application/json",
         },
         json={
-            "model": "google/gemini-2.0-flash-exp:free",
+            "model": "minimax/minimax-m2.5",,
             "messages": [
                 {
                     "role": "system",
