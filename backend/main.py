@@ -150,7 +150,7 @@ def call_openrouter(prompt):
             "Content-Type": "application/json",
         },
         json={
-            "model": "qwen/qwen3.6-plus-preview",
+            "model": "qwen/qwen3.6-plus-preview:free",
             "messages": [
                 {
                     "role": "system",
