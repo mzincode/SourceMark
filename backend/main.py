@@ -13,6 +13,7 @@ import json
 import os
 import time
 import uuid
+import httpx
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -41,7 +42,15 @@ else:
 
 if not gemini_model and not groq_client:
     print("⚠️ No API keys found. API calls will fail, but server will run.")
+
+# Set up OpenRouter
+openrouter_key = os.getenv("OPENROUTER_API_KEY")
+if openrouter_key:
+    print("✅ OpenRouter API connected")
+else:
+    print("⚠️  No OpenRouter key found")
 # Track which API to use
+
 current_api = "gemini" if gemini_model else "groq"
 
 # Create the app
@@ -72,7 +81,7 @@ COLOR_MAP = {
 }
 
 
-def extract_and_chunk(pdf_path, max_chars=10000):
+def extract_and_chunk(pdf_path, max_chars=20000):
     """Pull text out of a PDF and split into chunks."""
     doc = fitz.open(pdf_path)
     chunks = []
@@ -128,12 +137,34 @@ def call_groq(prompt):
     )
     return response.choices[0].message.content.strip()
 
+def call_openrouter(prompt):
+    """Send a prompt to OpenRouter and return the text response."""
+    response = httpx.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You find exact phrases in academic text. Return only valid JSON arrays.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2000,
+        },
+        timeout=30,
+    )
+    return response.json()["choices"][0]["message"]["content"].strip()
 
 def call_ai(prompt):
-    """Try Gemini first, fall back to Groq if it fails."""
+    """Try Gemini first, then Groq, then OpenRouter."""
     global current_api
 
-    # Try Gemini first
     if gemini_model and current_api == "gemini":
         try:
             return call_gemini(prompt)
@@ -149,7 +180,6 @@ def call_ai(prompt):
                 else:
                     raise
 
-    # Try Groq
     if groq_client and current_api == "groq":
         try:
             result = call_groq(prompt)
@@ -157,11 +187,18 @@ def call_ai(prompt):
         except Exception as e:
             error_str = str(e).lower()
             if "429" in str(e) or "rate" in error_str:
-                print("  ⚡ Groq rate limited, switching back to Gemini")
-                current_api = "gemini"
-                time.sleep(10)
-                if gemini_model:
-                    return call_gemini(prompt)
+                print("  ⚡ Groq rate limited, switching to OpenRouter")
+                current_api = "openrouter"
+            else:
+                raise
+
+    if openrouter_key and current_api == "openrouter":
+        try:
+            result = call_openrouter(prompt)
+            print("  ✅ OpenRouter responded")
+            return result
+        except Exception as e:
+            print(f"  ❌ OpenRouter error: {e}")
             raise
 
     raise Exception("No AI API available")
