@@ -146,7 +146,7 @@ def call_openrouter(prompt):
             "Content-Type": "application/json",
         },
         json={
-            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "model": "google/gemini-2.0-flash-exp:free",
             "messages": [
                 {
                     "role": "system",
