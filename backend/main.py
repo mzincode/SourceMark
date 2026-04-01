@@ -49,6 +49,12 @@ if openrouter_key:
     print("✅ OpenRouter API connected")
 else:
     print("⚠️  No OpenRouter key found")
+# set up mistral
+mistral_key = os.getenv("MISTRAL_API_KEY")
+if mistral_key:
+    print("✅ Mistral API connected")
+else:
+    print("⚠️  No Mistral key found")
 # Track which API to use
 
 current_api = "gemini" if gemini_model else "groq"
@@ -164,6 +170,26 @@ def call_openrouter(prompt):
         raise Exception(f"OpenRouter error: {data}")
     return data["choices"][0]["message"]["content"].strip()
 
+def call_mistral(prompt):
+    response = httpx.post(
+        "https://api.mistral.ai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {mistral_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "mistral-small-latest",
+            "messages": [
+                {"role": "system", "content": "You find exact phrases in academic text. Return only valid JSON arrays."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2000,
+        },
+        timeout=30,
+    )
+    return response.json()["choices"][0]["message"]["content"].strip()
+
 def call_ai(prompt):
     """Try Gemini first, then Groq, then OpenRouter."""
     global current_api
@@ -190,8 +216,8 @@ def call_ai(prompt):
         except Exception as e:
             error_str = str(e).lower()
             if "429" in str(e) or "rate" in error_str:
-                print("  ⚡ Groq rate limited, switching to OpenRouter")
-                current_api = "openrouter"
+                print("  ⚡ Groq rate limited, switching to Mistral")
+                current_api = "mistral"
             else:
                 raise
 
@@ -203,7 +229,14 @@ def call_ai(prompt):
         except Exception as e:
             print(f"  ❌ OpenRouter error: {e}")
             raise
-
+    if mistral_key and current_api == "mistral":
+        try:
+            result = call_mistral(prompt)
+            print("  ✅ Mistral responded")
+            return result
+        except Exception as e:
+            print(f"  ❌ Mistral error: {e}")
+            raise
     raise Exception("No AI API available")
 
 
