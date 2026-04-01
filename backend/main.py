@@ -24,7 +24,7 @@ groq_key = os.getenv("GROQ_API_KEY")
 # Set up Gemini
 if gemini_key:
     genai.configure(api_key=gemini_key)
-    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
     print("✅ Gemini API connected")
 else:
     gemini_model = None
@@ -40,9 +40,7 @@ else:
     print("⚠️  No Groq key found")
 
 if not gemini_model and not groq_client:
-    print("❌ No API keys found. Add GEMINI_API_KEY or GROQ_API_KEY to .env")
-    exit(1)
-
+    print("⚠️ No API keys found. API calls will fail, but server will run.")
 # Track which API to use
 current_api = "gemini" if gemini_model else "groq"
 
