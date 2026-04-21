@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, DM_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from '@vercel/analytics/react';
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -29,7 +30,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${fraunces.variable} ${dmMono.variable}`}>
-      <body className="bg-grain min-h-screen flex flex-col">{children}</body>
+      <body className="bg-grain min-h-screen flex flex-col">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

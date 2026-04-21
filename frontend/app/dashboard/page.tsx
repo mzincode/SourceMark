@@ -28,7 +28,6 @@ type Topic = {
   name: string;
   desc: string;
   color: string;
-  mode: "ai" | "exact";
 };
 
 type ResultItem = {
@@ -40,13 +39,7 @@ type ResultItem = {
 export default function DashboardPage() {
   const [file, setFile] = useState<File | null>(null);
   const [topics, setTopics] = useState<Topic[]>([
-    {
-      id: 1,
-      name: "Methodology",
-      desc: "How the study was conducted, research design, sample size",
-      color: "yellow",
-      mode: "ai",
-    },
+    { id: 1, name: "", desc: "", color: "yellow" },
   ]);
   const [processing, setProcessing] = useState(false);
   const [status, setStatus] = useState("");
@@ -74,7 +67,7 @@ export default function DashboardPage() {
 
     setTopics([
       ...topics,
-      { id: Date.now(), name: "", desc: "", color: nextColor, mode: "ai" },
+      { id: Date.now(), name: "", desc: "", color: nextColor },
     ]);
   };
 
@@ -108,7 +101,6 @@ export default function DashboardPage() {
             name: t.name || "Untitled",
             description: t.desc,
             color: t.color,
-            mode: t.mode,
           }))
         )
       );
@@ -342,34 +334,8 @@ export default function DashboardPage() {
                           </button>
                         )}
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => updateTopic(t.id, "mode", "ai")}
-                          className={`text-xs font-bold uppercase tracking-wider px-2 py-1 border-2 border-black transition-all ${
-                            t.mode === "ai"
-                              ? "bg-black text-white"
-                              : "bg-transparent text-black/40 hover:text-black"
-                          }`}
-                        >
-                          AI
-                        </button>
-                        <button
-                          onClick={() => updateTopic(t.id, "mode", "exact")}
-                          className={`text-xs font-bold uppercase tracking-wider px-2 py-1 border-2 border-black transition-all ${
-                            t.mode === "exact"
-                              ? "bg-black text-white"
-                              : "bg-transparent text-black/40 hover:text-black"
-                          }`}
-                        >
-                          Exact
-                        </button>
-                      </div>
                       <textarea
-                        placeholder={
-                          t.mode === "exact"
-                            ? "Enter exact text to search (e.g. a letter, word, or phrase)..."
-                            : "Describe what to extract..."
-                        }
+                        placeholder="Describe what to highlight..."
                         value={t.desc}
                         onChange={(e) =>
                           updateTopic(t.id, "desc", e.target.value)

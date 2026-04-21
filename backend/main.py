@@ -11,6 +11,7 @@ import fitz  # PyMuPDF
 import google.generativeai as genai
 import json
 import os
+import re
 import time
 import uuid
 import httpx
@@ -220,23 +221,43 @@ def call_ai(prompt):
 
     raise Exception(f"All AI APIs failed or rate-limited: {errors}")
 
+def extract_sentences(text: str) -> list:
+    """Extract clean sentences from chunk text for sentence-scoring."""
+    # Remove page markers
+    text = re.sub(r'--- PAGE \d+ ---', '', text)
+    # Replace newlines with spaces
+    text = text.replace('\n', ' ')
+    # Collapse multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    # Split into sentences on ., ?, ! followed by whitespace and an uppercase letter
+    raw = re.split(r'(?<=[.!?])\s+(?=[A-Z\[\(])', text)
+    # Clean, filter length > 20, cap at 60
+    cleaned = [s.strip() for s in raw if len(s.strip()) > 20]
+    return cleaned[:60]
+
+
 def find_phrases(chunk_text, topic_description, retry=0):
-    """Ask AI to find exact phrases matching a topic."""
-    prompt = f"""Find EXACT phrases from the text below that relate to:
+    """Score sentences from chunk text against the topic.
 
-{topic_description}
+    We extract sentences verbatim from the chunk ourselves, present them as a
+    numbered list to the AI, and ask it to return which indices are relevant.
+    This avoids paraphrasing: the returned sentences are guaranteed to be
+    verbatim PDF text, so they will pass verify_phrases's search.
+    """
+    sentences = extract_sentences(chunk_text)
+    if not sentences:
+        return []
 
-RULES:
-1. Return ONLY phrases that appear EXACTLY in the text
-2. Each phrase: 8-30 words long
-3. Do NOT paraphrase or change any words
-4. Return a JSON array of strings
-5. If nothing relevant exists, return: []
+    numbered = "\n".join(f"[{i}] {s}" for i, s in enumerate(sentences))
 
-TEXT:
-{chunk_text}
+    prompt = f"""Which sentences below are relevant to: {topic_description}
 
-Return ONLY the JSON array:"""
+Return ONLY a JSON array of sentence numbers. Example: [0, 3, 7]
+If nothing is relevant: []
+
+{numbered}
+
+JSON array:"""
 
     try:
         content = call_ai(prompt)
@@ -247,8 +268,12 @@ Return ONLY the JSON array:"""
         if start != -1 and end > start:
             content = content[start:end]
 
-        phrases = json.loads(content)
-        return [p for p in phrases if isinstance(p, str) and len(p) > 15]
+        indices = json.loads(content)
+        return [
+            sentences[i]
+            for i in indices
+            if isinstance(i, int) and 0 <= i < len(sentences)
+        ]
 
     except json.JSONDecodeError:
         if retry < 2:
@@ -268,6 +293,7 @@ def verify_phrases(doc, phrases):
     verified = []
 
     for phrase in phrases:
+        phrase = re.sub(r'\s+', ' ', phrase).strip()
         found = False
 
         # Strategy 1: Try the exact phrase
