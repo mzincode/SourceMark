@@ -119,7 +119,7 @@ def call_gemini(prompt):
         prompt,
         generation_config=genai.GenerationConfig(
             temperature=0.1,
-            max_output_tokens=2000,
+            max_output_tokens=800,
         ),
     )
     return response.text.strip()
@@ -137,7 +137,7 @@ def call_groq(prompt):
             {"role": "user", "content": prompt},
         ],
         temperature=0.1,
-        max_tokens=2000,
+        max_tokens=800,
     )
     return response.choices[0].message.content.strip()
 
@@ -188,43 +188,37 @@ def call_mistral(prompt):
     )
     return response.json()["choices"][0]["message"]["content"].strip()
 
+_api_cooldowns: dict = {}
+COOLDOWN_SECONDS = 60
+
 def call_ai(prompt):
-    """Try APIs in order: Gemini → Groq → Mistral → OpenRouter"""
+    """Try APIs in order: Gemini → Groq → Mistral → OpenRouter, skipping rate-limited ones."""
+    now = time.time()
+    providers = [
+        ("gemini", gemini_model, call_gemini),
+        ("groq", groq_client, call_groq),
+        ("mistral", mistral_key, call_mistral),
+        ("openrouter", openrouter_key, call_openrouter),
+    ]
     errors = []
-    
-    # Try Gemini
-    if gemini_model:
+    for name, key, fn in providers:
+        if not key:
+            continue
+        if _api_cooldowns.get(name, 0) > now:
+            remaining = int(_api_cooldowns[name] - now)
+            print(f"  ⏭ {name} cooling down ({remaining}s remaining), skipping")
+            continue
         try:
-            return call_gemini(prompt)
+            return fn(prompt)
         except Exception as e:
-            print(f"  ⚠️ Gemini failed: {e}")
-            errors.append(f"Gemini: {e}")
-    
-    # Try Groq
-    if groq_client:
-        try:
-            return call_groq(prompt)
-        except Exception as e:
-            print(f"  ⚠️ Groq failed: {e}")
-            errors.append(f"Groq: {e}")
-    
-    # Try Mistral
-    if mistral_key:
-        try:
-            return call_mistral(prompt)
-        except Exception as e:
-            print(f"  ⚠️ Mistral failed: {e}")
-            errors.append(f"Mistral: {e}")
-    
-    # Try OpenRouter
-    if openrouter_key:
-        try:
-            return call_openrouter(prompt)
-        except Exception as e:
-            print(f"  ⚠️ OpenRouter failed: {e}")
-            errors.append(f"OpenRouter: {e}")
-    
-    raise Exception(f"All AI APIs failed: {errors}")
+            if "429" in str(e) or "rate" in str(e).lower() or "quota" in str(e).lower():
+                _api_cooldowns[name] = now + COOLDOWN_SECONDS
+                print(f"  🔴 {name} rate-limited, cooling {COOLDOWN_SECONDS}s")
+            else:
+                print(f"  ⚠️ {name} failed: {e}")
+            errors.append(f"{name}: {e}")
+
+    raise Exception(f"All AI APIs failed or rate-limited: {errors}")
 
 def find_phrases(chunk_text, topic_description, retry=0):
     """Ask AI to find exact phrases matching a topic."""
@@ -413,11 +407,25 @@ async def highlight_document(
             topic_desc = topic.get("description", "")
             color_name = topic.get("color", "yellow")
             color = COLOR_MAP.get(color_name, COLOR_MAP["yellow"])
+            topic_mode = topic.get("mode", "ai")
 
             if not topic_desc:
                 continue
 
-            print(f"\n  🎯 {topic_name} ({color_name})")
+            print(f"\n  🎯 {topic_name} ({color_name}) [{topic_mode}]")
+
+            # Exact mode: skip AI, search PDF directly for the literal string
+            if topic_mode == "exact":
+                search_term = topic_desc.strip()
+                count = highlight_pdf(doc, [search_term], color)
+                total_highlights += count
+                print(f"    ✅ Exact matches highlighted: {count}")
+                results.append({
+                    "topic": topic_name,
+                    "color": color_name,
+                    "highlights": count,
+                })
+                continue
 
             all_phrases = []
             for i, chunk in enumerate(chunks):
@@ -425,7 +433,8 @@ async def highlight_document(
                 phrases = find_phrases(chunk["text"], topic_desc)
                 print(f"{len(phrases)} found")
                 all_phrases.extend(phrases)
-                time.sleep(4)
+                if i < len(chunks) - 1:
+                    time.sleep(4)
 
             unique = list(set(all_phrases))
             print(f"    Unique: {len(unique)}")
